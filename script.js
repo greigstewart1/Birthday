@@ -16,7 +16,7 @@ function vnoise(x, y) { const xi = Math.floor(x), yi = Math.floor(y), fx = ease(
 
 function resize() {
   dpr = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight;
-  cw = clamp(Math.round(W / 90), 5, 9); ch = Math.round(cw * 1.7);
+  cw = clamp(Math.round(W / 105), 4, 9); ch = Math.round(cw * 1.7);
   cols = Math.ceil(W / cw); rows = Math.ceil(H / ch);
   cv.width = W * dpr; cv.height = H * dpr;
   for (const c of [cB, cA]) { c.width = cols * S; c.height = rows * S; }
@@ -45,13 +45,13 @@ function heart(x, px, py, s, col) { x.fillStyle = col; x.beginPath(); x.moveTo(p
 function rrect(x, a, b, w, h, r) { x.beginPath(); x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r); x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath(); }
 
 function paper(x, R, textA) {
-  x.fillStyle = '#6b4a33'; rrect(x, R.cx - R.w / 2, R.cy - R.h / 2, R.w, R.h, 6); x.fill();
+  x.fillStyle = '#3d2a1c'; rrect(x, R.cx - R.w / 2, R.cy - R.h / 2, R.w, R.h, 6); x.fill();
   x.strokeStyle = '#e0b98a'; x.lineWidth = Math.max(3, R.w * 0.015); x.stroke();
   if (textA <= 0) return;
-  x.save(); x.globalAlpha *= textA; x.fillStyle = x.strokeStyle = '#fff6ea'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.save(); x.globalAlpha *= textA; x.fillStyle = x.strokeStyle = '#fffaf0'; x.textAlign = 'center'; x.textBaseline = 'middle';
   let fs = R.w * 0.3; const f = s => `bold ${s}px Impact, 'Arial Black', Arial, sans-serif`;
-  x.font = f(fs); const mw = x.measureText('Birthday').width; fs *= R.w * 0.74 / mw; x.font = f(fs);
-  x.lineWidth = fs * 0.09; x.lineJoin = 'round'; x.fillText('Happy', R.cx, R.cy - R.h * 0.24); x.strokeText('Happy', R.cx, R.cy - R.h * 0.24);
+  x.font = f(fs); const mw = x.measureText('Birthday').width; fs *= R.w * 0.8 / mw; x.font = f(fs);
+  x.lineWidth = fs * 0.17; x.lineJoin = 'round'; x.fillText('Happy', R.cx, R.cy - R.h * 0.24); x.strokeText('Happy', R.cx, R.cy - R.h * 0.24);
   x.fillText('Birthday', R.cx, R.cy - R.h * 0.24 + fs * 1.0); x.strokeText('Birthday', R.cx, R.cy - R.h * 0.24 + fs * 1.0);
   x.font = f(fs * 0.9); x.fillText('love u', R.cx, R.cy + R.h * 0.2 + fs * 0.3);
   heart(x, R.cx, R.cy + R.h * 0.38, fs * 0.4, '#d81b60'); x.restore();
