@@ -1,6 +1,6 @@
 (() => {
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
-const forEl = { style: {} }, hint = document.getElementById('hint'), title = document.getElementById('title');
+const title = document.getElementById('title');
 const mk = () => { const c = document.createElement('canvas'); return [c, c.getContext('2d', { willReadFrequently: true })]; };
 const [cB, xB] = mk(), [cA, xA] = mk();
 const S = 3, RAMP = " .'`:;-~=+*xoO#%@", PI = Math.PI;
@@ -16,7 +16,9 @@ const MESSAGE = {
 };
 const HEADING = 'Happy Birthday, ' + (MESSAGE.to || 'my love');
 
-let W, H, dpr, cw, ch, cols, rows, stars, burnV, bufB, bufA, env, big;
+let W, H, dpr, cw, ch, cols, rows, stars, burnV, burnt, occupied, bufB, bufA, env, big;
+const acv = document.createElement('canvas'), actx = acv.getContext('2d');
+let dirty = true;
 
 function hash(x, y) { let h = Math.imul(x, 374761393) + Math.imul(y, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; }
 function vnoise(x, y) { const xi = Math.floor(x), yi = Math.floor(y), fx = ease(x - xi), fy = ease(y - yi);
@@ -24,9 +26,9 @@ function vnoise(x, y) { const xi = Math.floor(x), yi = Math.floor(y), fx = ease(
 
 function resize() {
   dpr = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight;
-  cw = clamp(Math.round(W / 105), 4, 9); ch = Math.round(cw * 1.7);
+  cw = clamp(Math.round(W / 80), 5, 9); ch = Math.round(cw * 1.7);
   cols = Math.ceil(W / cw); rows = Math.ceil(H / ch);
-  cv.width = W * dpr; cv.height = H * dpr;
+  cv.width = acv.width = Math.round(W * dpr); cv.height = acv.height = Math.round(H * dpr); dirty = true;
   for (const c of [cB, cA]) { c.width = cols * S; c.height = rows * S; }
   const n = cols * rows;
   bufB = { r: new Float32Array(n), g: new Float32Array(n), b: new Float32Array(n), a: new Float32Array(n) };
@@ -34,9 +36,9 @@ function resize() {
   const ew = Math.min(W * 0.7, 460);
   env = { cx: W / 2, cy: H * 0.52, w: ew, h: ew * 0.64 };
   const lw = Math.min(W * 0.88, 560);
-  big = { cx: W / 2, cy: H * 0.5, w: lw, h: Math.min(H * 0.62, lw * 1.15) };
+  big = { cx: W / 2, cy: H * 0.5, w: lw, h: Math.min(H * 0.7, lw * 1.3) };
   const ox = big.cx, oy = big.cy + big.h * 0.5, maxD = Math.hypot(Math.max(ox, W - ox), Math.max(oy, H - oy));
-  burnV = new Float32Array(n);
+  burnV = new Float32Array(n); burnt = new Uint8Array(n); occupied = new Uint8Array(n);
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     const d = Math.hypot(c * cw - ox, r * ch - oy) / maxD * 1.5;
     const nz = 0.6 * vnoise(c * 0.12, r * 0.12) + 0.3 * vnoise(c * 0.4, r * 0.4) + 0.1 * hash(c, r);
@@ -56,7 +58,7 @@ function rrect(x, a, b, w, h, r) { x.beginPath(); x.moveTo(a + r, b); x.arcTo(a 
 function paper(x, R) {
   x.fillStyle = '#3a281b'; rrect(x, R.cx - R.w / 2, R.cy - R.h / 2, R.w, R.h, 6); x.fill();
   x.strokeStyle = '#e0b98a'; x.lineWidth = Math.max(3, R.w * 0.015); x.stroke();
-  x.strokeStyle = '#6a4a33'; x.lineWidth = Math.max(1.5, R.h * 0.004);
+  x.strokeStyle = '#4d3624'; x.lineWidth = Math.max(1.5, R.h * 0.004);
   for (let y = R.cy - R.h * 0.2; y < R.cy + R.h * 0.38; y += R.h * 0.075) { x.beginPath(); x.moveTo(R.cx - R.w * 0.42, y); x.lineTo(R.cx + R.w * 0.42, y); x.stroke(); }
   heart(x, R.cx, R.cy - R.h * 0.4, R.w * 0.035, '#ff7fb0');
 }
@@ -86,8 +88,9 @@ function rose(x, px, py, r, b, seed) {
   x.stroke(); x.restore();
 }
 
+function bqGeom() { const u = Math.min(W * 0.95, H * 0.62), base = H * 0.5 + 0.52 * u; return { u, cx: W / 2, base, ty: base - 0.4 * u }; }
 function bouquet(x, bt) {
-  const u = Math.min(W * 0.95, H * 0.62), cx = W / 2, base = H * 0.5 + 0.52 * u, ty = base - 0.4 * u;
+  const { u, cx, base, ty } = bqGeom();
   x.save(); x.translate(cx, base); x.rotate(Math.sin(bt * 1.3) * 0.012); x.translate(-cx, -base);
   const grow = ease(bt / 0.8);
   x.fillStyle = '#1f6b3d'; x.beginPath(); x.ellipse(cx, ty - 0.28 * u, 0.4 * u * grow, 0.36 * u * grow, 0, 0, 7); x.fill();
@@ -104,7 +107,7 @@ function bouquet(x, bt) {
   x.fillStyle = '#ff5c9e'; x.beginPath(); x.moveTo(cx - half(y1), y1); x.lineTo(cx + half(y1), y1); x.lineTo(cx + half(y2), y2); x.lineTo(cx - half(y2), y2); x.fill();
   // roses
   const R = [[0, -0.3, 0.17], [-0.21, -0.2, 0.15], [0.21, -0.2, 0.15], [-0.11, -0.5, 0.14], [0.12, -0.5, 0.14], [-0.33, -0.38, 0.12], [0.33, -0.38, 0.12], [0, -0.08, 0.13]];
-  R.forEach((q, i) => rose(x, cx + q[0] * u, ty + q[1] * u, q[2] * u, (bt - 0.8 - i * 0.25) / 1.0, i * 1.7));
+  R.forEach((q, i) => rose(x, cx + q[0] * u, ty + q[1] * u, q[2] * u, (bt - 1.6 - i * 0.28) / 1.1, i * 1.7));
   // bow
   const by = ty + 0.165 * u; x.fillStyle = '#ff5c9e'; for (const s of [-1, 1]) { x.save(); x.translate(cx + s * 0.07 * u, by); x.rotate(s * 0.4);
     x.beginPath(); x.ellipse(0, 0, 0.07 * u, 0.035 * u, 0, 0, 7); x.fill(); x.restore(); }
@@ -133,111 +136,191 @@ function wrap(c, text, maxW) { const out = []; let line = ''; for (const w of te
 function buildText() {
   tcv.width = ocv.width = Math.round(W * dpr); tcv.height = ocv.height = Math.round(H * dpr);
   tx.setTransform(dpr, 0, 0, dpr, 0, 0); tx.clearRect(0, 0, W, H); tx.textAlign = 'center'; tx.textBaseline = 'middle';
-  const R = big, mw = R.w * 0.82;
-  let hf = R.w * 0.2; tx.font = `${hf}px ${SCRIPT}`; while (tx.measureText(HEADING).width > mw && hf > 14) { hf -= 1; tx.font = `${hf}px ${SCRIPT}`; }
-  tx.shadowColor = '#ff4f93'; tx.shadowBlur = 14; tx.fillStyle = '#ffb8d4'; tx.fillText(HEADING, R.cx, R.cy - R.h * 0.36);
-  tx.shadowBlur = 0;
-  let bf = R.w * 0.075, lines; const room = R.h * 0.44;
-  for (; bf > 12; bf -= 1) { tx.font = `600 ${bf}px ${BODY}`; lines = wrap(tx, MESSAGE.body, mw); if (lines.length * bf * 1.4 <= room) break; }
-  tx.fillStyle = '#fff3e2'; const y0 = R.cy - R.h * 0.22 + bf * 0.7;
-  lines.forEach((l, i) => tx.fillText(l, R.cx, y0 + i * bf * 1.4));
-  const sf = R.w * 0.09; tx.font = `${sf}px ${SCRIPT}`; tx.fillStyle = '#ffb8d4'; tx.shadowColor = '#ff4f93'; tx.shadowBlur = 10;
-  tx.fillText(MESSAGE.sign, R.cx - sf * 0.4, R.cy + R.h * 0.4); tx.shadowBlur = 0;
-  heart(tx, R.cx + tx.measureText(MESSAGE.sign).width / 2 + sf * 0.3, R.cy + R.h * 0.4 + 2, sf * 0.28, '#ff5c9e');
+  const R = big, mw = R.w * 0.78, maxH = R.h * 0.84;
+  let hf = Math.min(R.w * 0.17, 64); tx.font = `${hf}px ${SCRIPT}`;
+  while (tx.measureText(HEADING).width > R.w * 0.84 && hf > 14) { hf -= 1; tx.font = `${hf}px ${SCRIPT}`; }
+  let bf = Math.min(R.w * 0.082, 30), lines, sf, total, gap1, gap2;
+  for (; bf > 12; bf -= 1) { tx.font = `600 ${bf}px ${BODY}`; lines = wrap(tx, MESSAGE.body, mw);
+    sf = Math.min(R.w * 0.095, 36); gap1 = hf * 0.7; gap2 = bf * 1.2;
+    total = hf + gap1 + lines.length * bf * 1.5 + gap2 + sf; if (total <= maxH) break; }
+  const y0 = R.cy - total / 2, cx = R.cx;
+  // heading: soft outer glow, then a crisp gradient pass
+  const g = tx.createLinearGradient(cx - R.w * 0.4, 0, cx + R.w * 0.4, 0); g.addColorStop(0, '#ffd9ea'); g.addColorStop(0.5, '#fff0f6'); g.addColorStop(1, '#ffb3d1');
+  tx.font = `${hf}px ${SCRIPT}`; const hy = y0 + hf / 2;
+  tx.shadowColor = 'rgba(255,47,134,0.95)'; tx.shadowBlur = 26; tx.fillStyle = '#ff7fb0'; tx.fillText(HEADING, cx, hy);
+  tx.shadowColor = 'rgba(255,127,176,0.8)'; tx.shadowBlur = 8; tx.fillStyle = g; tx.fillText(HEADING, cx, hy); tx.shadowBlur = 0;
+  // divider
+  const dy = y0 + hf + gap1 * 0.5, dw = R.w * 0.3;
+  for (const sd of [-1, 1]) { const lg = tx.createLinearGradient(cx, 0, cx + sd * dw, 0); lg.addColorStop(0, 'rgba(255,150,195,0.85)'); lg.addColorStop(1, 'rgba(255,150,195,0)');
+    tx.strokeStyle = lg; tx.lineWidth = 1.2; tx.beginPath(); tx.moveTo(cx + sd * R.w * 0.045, dy); tx.lineTo(cx + sd * dw, dy); tx.stroke(); }
+  heart(tx, cx, dy, R.w * 0.026, '#ff6fa8');
+  // body
+  tx.font = `600 ${bf}px ${BODY}`; tx.fillStyle = '#fff6ea'; tx.shadowColor = 'rgba(255,120,170,0.35)'; tx.shadowBlur = 6;
+  const by = y0 + hf + gap1 + bf * 0.75; lines.forEach((l, i) => tx.fillText(l, cx, by + i * bf * 1.5)); tx.shadowBlur = 0;
+  // sign-off, text and heart centred as one group
+  tx.font = `${sf}px ${SCRIPT}`; const tw = tx.measureText(MESSAGE.sign).width, hw = sf * 0.5, grp = tw + sf * 0.35 + hw, sy = y0 + total - sf / 2;
+  tx.textAlign = 'left'; tx.shadowColor = 'rgba(255,47,134,0.9)'; tx.shadowBlur = 12; tx.fillStyle = '#ffb8d4'; tx.fillText(MESSAGE.sign, cx - grp / 2, sy); tx.shadowBlur = 0; tx.textAlign = 'center';
+  heart(tx, cx - grp / 2 + tw + sf * 0.35 + hw / 2, sy + sf * 0.05, sf * 0.26, '#ff5c9e');
   textReady = true;
 }
 if (document.fonts && document.fonts.load) Promise.all([document.fonts.load('40px "Great Vibes"'), document.fonts.load('600 24px "Dancing Script"')]).then(() => { textReady = false; }).catch(() => {});
 
-/* ---------- floating hearts and petals ---------- */
-let hearts = [], petals = [];
-const initFloaters = () => { hearts = Array.from({ length: 16 }, () => ({ x: Math.random() * W, y: Math.random() * H, s: 5 + Math.random() * 9, vy: 12 + Math.random() * 22, ph: Math.random() * 6, a: 0.15 + Math.random() * 0.3 })); petals = []; };
+/* ---------- particles: petals, hearts, embers, sparkles ---------- */
+const calm = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+const sprite = rgb => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, `rgba(${rgb},1)`); gr.addColorStop(0.35, `rgba(${rgb},0.4)`); gr.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return c; };
+const GLOW_FIRE = sprite('255,140,40'), GLOW_PINK = sprite('255,110,175');
+const PETAL_COL = ['#ff9ec4', '#ff7fb0', '#ffc4dc', '#ff8fbf'];
+let hearts = [], petals = [], embers = [], sparkles = [], fireList = [];
+const rnd = Math.random;
+function newPetal(y) { const d = 0.4 + rnd() * 0.6; return { x: rnd() * W, y, d, vx: (rnd() - 0.5) * 14, vy: 16 + 30 * d, r: rnd() * 6, s: 3 + 5 * d, f: rnd() * 6, fs: 1.5 + rnd() * 2, c: PETAL_COL[(rnd() * 4) | 0] }; }
+function initFloaters() {
+  hearts = Array.from({ length: 22 }, () => ({ x: rnd() * W, y: rnd() * H, s: 5 + rnd() * 9, vy: 12 + rnd() * 22, ph: rnd() * 6, a: 0.15 + rnd() * 0.3 }));
+  petals = Array.from({ length: calm ? 4 : 9 }, () => newPetal(rnd() * H));
+  sparkles = Array.from({ length: 16 }, () => ({ a: rnd() * 6.28, r: Math.sqrt(rnd()), p: rnd() * 6, sp: 1.5 + rnd() * 2 }));
+  embers = [];
+}
 
 /* ---------- state ---------- */
-let phase = 'closed', t0 = 0, burnStart = 0, embers = [], last = performance.now();
-const OPEN = 3.2, BURN = 4.4, FIRE = ['#ff3d00', '#ff8a00', '#ffc400', '#fff176'], FCH = '^*#%&@+';
-function go(p) { phase = p; t0 = performance.now(); }
-addEventListener('pointerdown', () => {
-  if (phase === 'closed') { go('opening'); hint.style.opacity = 0; forEl.style.opacity = 0; }
-  else if (phase === 'letter') { go('burning'); burnStart = t0; hint.style.opacity = 0; }
-  else if (phase === 'bouquet' && (performance.now() - burnStart) / 1000 > 7) { go('closed'); title.style.opacity = 0; hint.textContent = 'tap to open'; hint.style.opacity = ''; forEl.style.opacity = ''; embers = []; }
+const hint = document.getElementById('hint'), intro = document.getElementById('intro'), replay = document.getElementById('replay');
+let phase = 'closed', t0 = 0, burnStart = 0, last = performance.now(), frameNo = 0, G = ctx, lastCol = '';
+const OPEN = 3.2, BURN = 5, BAND = 0.07;
+const FIRE_STOPS = [[0, 255, 244, 200], [0.35, 255, 196, 0], [0.7, 255, 106, 0], [1, 190, 35, 0]];
+function fireColor(t) { for (let i = 1; i < FIRE_STOPS.length; i++) { const a = FIRE_STOPS[i - 1], b = FIRE_STOPS[i]; if (t <= b[0]) { const k = (t - a[0]) / (b[0] - a[0]);
+  return `rgb(${lerp(a[1], b[1], k) | 0},${lerp(a[2], b[2], k) | 0},${lerp(a[3], b[3], k) | 0})`; } } return 'rgb(190,35,0)'; }
+function go(p) { phase = p; t0 = performance.now(); dirty = true; }
+function setHint(t) { hint.textContent = t; hint.classList.remove('off'); }
+function reset() { go('closed'); title.classList.remove('show'); replay.classList.remove('show'); intro.classList.add('show'); setHint('A little surprise for you'); embers = []; fireList = []; burnt.fill(0); }
+addEventListener('pointerdown', e => {
+  if (e.target.closest && e.target.closest('#replay')) return;
+  if (phase === 'closed') { go('opening'); hint.classList.add('off'); intro.classList.remove('show'); }
+  else if (phase === 'letter') { go('burning'); burnStart = t0; burnt.fill(0); hint.classList.add('off'); }
 });
+replay.addEventListener('click', reset);
 title.textContent = 'Happy Birthday';
+requestAnimationFrame(() => intro.classList.add('show'));
 addEventListener('resize', resize);
 
-function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now; const el = (now - t0) / 1000;
-  if (phase === 'opening' && el >= OPEN) { go('letter'); hint.textContent = 'tap again'; hint.style.opacity = ''; }
-  const bt = phase === 'burning' || phase === 'bouquet' ? (now - burnStart) / 1000 : 0;
-  if (phase === 'burning' && bt >= BURN) { phase = 'bouquet'; hint.textContent = 'tap to replay'; }
-  if (bt > 3) title.style.opacity = 1;
-  if (bt > 9) hint.style.opacity = '';
+function radial(cx, cy, r, a, rgb) { if (a <= 0.003) return; const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, `rgba(${rgb},${a})`); g.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = g; ctx.fillRect(cx - r, cy - r, 2 * r, 2 * r); }
+const put = (c, r, chr, col) => { if (col !== lastCol) { G.fillStyle = col; lastCol = col; } G.fillText(chr, c * cw + cw / 2, r * ch + ch / 2); };
+const draw = (buf, n, c, r) => { const R = buf.r[n], Gc = buf.g[n], B = buf.b[n], lum = (0.3 * R + 0.59 * Gc + 0.11 * B) / 255;
+  const idx = Math.round(clamp(buf.a[n] * Math.pow(lum, 1.1) * 1.15) * (RAMP.length - 1)); if (!idx) return false;
+  put(c, r, RAMP[idx], `rgb(${R | 0},${Gc | 0},${B | 0})`); return true; };
 
-  // scene B: envelope / letter
-  const showB = phase !== 'bouquet';
-  if (showB) {
-    setup(xB); const bob = Math.sin(now / 700) * 4;
-    if (phase === 'closed') envelope(xB, { ...env, cy: env.cy + bob }, 0, null, 0, 1, 0);
+function composeAscii(now, bt) {
+  actx.setTransform(dpr, 0, 0, dpr, 0, 0); actx.clearRect(0, 0, W, H);
+  actx.font = `bold ${cw / 0.6}px "Courier New", monospace`; actx.textAlign = 'center'; actx.textBaseline = 'middle';
+  G = actx; lastCol = ''; occupied.fill(0); fireList.length = 0;
+  const showB = phase !== 'bouquet', showA = bt > 0, burning = phase === 'burning', spark = Math.floor(now / 70);
+  const p = burning ? lerp(-0.1, 1.25, ease(bt / BURN)) : 2, maxE = calm ? 60 : 130;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const n = r * cols + c; let done = false, revealA = phase === 'bouquet';
+    if (burning && !burnt[n]) {
+      const v0 = burnV[n] - p;
+      if (v0 > 0.3) { if (bufB.a[n] > 0.1) done = draw(bufB, n, c, r); }
+      else {
+        const v = v0 + (vnoise(c * 0.2, r * 0.2 - now * 0.0012) - 0.5) * 0.05;
+        if (v <= 0) burnt[n] = 1;
+        else if (bufB.a[n] > 0.1) {
+          if (v > 2 * BAND) done = draw(bufB, n, c, r);
+          else if (v > BAND) { const k = 0.3, glow = hash(c * 7 + spark, r) < 0.1; put(c, r, glow ? '.' : ':', glow ? '#ff5a1f' : `rgb(${bufB.r[n] * k | 0},${bufB.g[n] * k * 0.7 | 0},${bufB.b[n] * k * 0.5 | 0})`); done = true; }
+          else { const t = v / BAND, h = hash(c + spark, r), chars = t < 0.45 ? '@#%&' : '*^+x';
+            put(c, r, chars[(h * 4) | 0], fireColor(t)); done = true;
+            if (fireList.length < 240 && h > 0.7) fireList.push(c * cw + cw / 2, r * ch + ch / 2);
+            if (rnd() < 0.016 && embers.length < maxE) embers.push({ x: c * cw + rnd() * cw, y: r * ch, vx: (rnd() - 0.5) * 26, vy: -18 - rnd() * 50, life: 1, k: 0.5 + rnd() * 0.9, ph: rnd() * 6 }); }
+        }
+      }
+    } else if (showB && !burning && bufB.a[n] > 0.1) done = draw(bufB, n, c, r);
+    if (burning && burnt[n]) revealA = true;
+    if (!done && showA && revealA && bufA.a[n] > 0.1) done = draw(bufA, n, c, r);
+    if (done) occupied[n] = 1;
+  }
+  G = ctx; lastCol = '';
+}
+
+function frame(now) {
+  frameNo++; const dt = Math.min(0.05, (now - last) / 1000); last = now; const el = (now - t0) / 1000;
+  if (phase === 'opening' && el >= OPEN) { go('letter'); setHint('tap again'); }
+  const bt = phase === 'burning' || phase === 'bouquet' ? (now - burnStart) / 1000 : 0;
+  if (phase === 'burning' && bt >= BURN) phase = 'bouquet';
+  if (bt > BURN) title.classList.add('show');
+  if (bt > BURN + 2.5) replay.classList.add('show');
+
+  // scene B (envelope / letter) only when it changes; it is static while the letter burns
+  if (phase === 'opening' || (dirty && (phase === 'closed' || phase === 'letter'))) {
+    setup(xB);
+    if (phase === 'closed') envelope(xB, env, 0, null, 0, 1, 0);
     else if (phase === 'opening') {
       const t = el / OPEN, flap = ease(t / 0.28), rise = ease((t - 0.28) / 0.3), ex = ease((t - 0.6) / 0.4);
       const sm = { cx: env.cx, cy: env.cy - env.h * 0.05 - rise * env.h * 0.62, w: env.w * 0.88, h: env.h * 0.9 };
       const L = { cx: lerp(sm.cx, big.cx, ex), cy: lerp(sm.cy, big.cy, ex), w: lerp(sm.w, big.w, ex), h: lerp(sm.h, big.h, ex) };
-      envelope(xB, env, flap, rise > 0 ? L : null, ease((t - 0.8) / 0.2), 1 - ex, ex * H * 0.3);
-      if (ex > 0) { xB.save(); xB.globalAlpha = ex; paper(xB, L, ease((t - 0.8) / 0.2)); xB.restore(); }
-    } else paper(xB, { ...big, cy: big.cy + (phase === 'letter' ? Math.sin(now / 900) * 4 : 0) }, 1);
+      envelope(xB, env, flap, rise > 0 ? L : null, 0, 1 - ex, ex * H * 0.3);
+      if (ex > 0) { xB.save(); xB.globalAlpha = ex; paper(xB, L); xB.restore(); }
+    } else paper(xB, big);
     sample(cB, xB, bufB);
   }
-  // scene A: bouquet
-  const showA = bt > 0;
-  if (showA) { setup(xA); bouquet(xA, bt); sample(cA, xA, bufA); }
-
-  // compose
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-  ctx.font = `bold ${cw / 0.6}px "Courier New", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  const occupied = new Uint8Array(cols * rows);
-  const p = phase === 'burning' ? lerp(-0.1, 1.25, ease(bt / BURN)) : phase === 'bouquet' ? 2 : -1;
-  const spark = Math.floor(now / 70);
-  let lastCol = '';
-  const put = (c, r, chr, col) => { if (col !== lastCol) { ctx.fillStyle = col; lastCol = col; } ctx.fillText(chr, c * cw + cw / 2, r * ch + ch / 2); };
-  const draw = (buf, n, c, r) => { const R = buf.r[n], G = buf.g[n], B = buf.b[n], lum = (0.3 * R + 0.59 * G + 0.11 * B) / 255;
-    const idx = Math.round(clamp(buf.a[n] * Math.pow(lum, 1.1) * 1.15) * (RAMP.length - 1)); if (!idx) return false;
-    put(c, r, RAMP[idx], `rgb(${R | 0},${G | 0},${B | 0})`); return true; };
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    const n = r * cols + c; let done = false;
-    if (showB && bufB.a[n] > 0.1) {
-      const v = burnV[n] - p;
-      if (v > 0.14 || p < 0 && phase !== 'burning') done = draw(bufB, n, c, r);
-      else if (v > 0.07) { const k = 0.3; put(c, r, ':', `rgb(${bufB.r[n] * k | 0},${bufB.g[n] * k * 0.7 | 0},${bufB.b[n] * k * 0.5 | 0})`); done = true; }
-      else if (v > 0) { const h = hash(c + spark, r); put(c, r, FCH[h * FCH.length | 0], FIRE[hash(r, c + spark) * 4 | 0]); done = true;
-        if (Math.random() < 0.012 && embers.length < 250) embers.push({ x: c * cw, y: r * ch, vx: (Math.random() - 0.5) * 30, vy: -20 - Math.random() * 60, life: 1 }); }
-    }
-    if (!done && showA && bufA.a[n] > 0.1) done = draw(bufA, n, c, r);
-    if (done) occupied[n] = 1;
+  // ASCII layer is cached; redrawn only when something in it moves
+  if (dirty || phase === 'opening' || ((phase === 'burning' || phase === 'bouquet') && frameNo % 2 === 0)) {
+    if (bt > 0) { setup(xA); bouquet(xA, bt); sample(cA, xA, bufA); }
+    composeAscii(now, bt); dirty = false;
   }
-  // stars
+
+  // ----- paint -----
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const bq = bqGeom(), breathe = Math.sin(now / 1300);
+  if (phase === 'closed') radial(env.cx, env.cy, Math.min(W, H) * 0.5, 0.2 + 0.04 * breathe, '255,60,140');
+  else if (phase === 'opening') radial(env.cx, env.cy, Math.min(W, H) * 0.5, 0.2 * (1 - ease(el / OPEN)), '255,60,140');
+  else if (phase === 'letter' || phase === 'burning') radial(big.cx, big.cy, Math.max(big.w, big.h) * 0.8, 0.06, '255,60,140');
+  if (bt > 0) { const k = ease((bt - BURN + 2.5) / 3.5); radial(bq.cx, bq.ty - 0.28 * bq.u, bq.u * 1.05, (phase === 'bouquet' ? 0.2 + 0.03 * breathe : 0.1 * ease(bt / BURN)) * (0.4 + 0.6 * k), '255,60,140'); }
+  ctx.drawImage(acv, 0, 0, W, H);
+
+  ctx.font = `bold ${cw / 0.6}px "Courier New", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; lastCol = '';
   for (const s of stars) { const n = s.r * cols + s.c; if (occupied[n]) continue; const tw = 0.5 + 0.5 * Math.sin(now / 600 + s.p), a = 0.15 + 0.5 * tw * (0.4 + s.s);
     put(s.c, s.r, s.s > 0.8 ? '+' : s.s > 0.4 ? '.' : "'", `rgba(190,205,255,${a.toFixed(2)})`); }
-  // crisp message
-  const tA = phase === 'letter' ? ease(el / 0.9) : phase === 'burning' && bt < BURN ? 1 : 0;
+
+  // crisp message, fading softly ahead of the fire
+  const tA = phase === 'letter' ? ease(el / 0.9) : phase === 'burning' ? 1 : 0;
   if (tA > 0) {
     if (!textReady) buildText();
-    ox.globalCompositeOperation = 'source-over'; ox.globalAlpha = 1; ox.clearRect(0, 0, ocv.width, ocv.height); ox.globalAlpha = tA; ox.drawImage(tcv, 0, 0); ox.globalAlpha = 1;
+    const rx = Math.max(0, big.cx - big.w / 2 - 12), ry = Math.max(0, big.cy - big.h / 2 - 12), rw = Math.min(W - rx, big.w + 24), rh = Math.min(H - ry, big.h + 24);
+    const dx = rx * dpr, dy = ry * dpr, dw = rw * dpr, dh = rh * dpr;
+    ox.globalCompositeOperation = 'source-over'; ox.globalAlpha = 1; ox.clearRect(dx, dy, dw, dh); ox.globalAlpha = tA; ox.drawImage(tcv, dx, dy, dw, dh, dx, dy, dw, dh); ox.globalAlpha = 1;
     if (phase === 'burning') {
-      const m = maskImg.data; for (let n = 0; n < burnV.length; n++) m[n * 4 + 3] = burnV[n] - p <= 0.14 ? 255 : 0;
-      mx.putImageData(maskImg, 0, 0); ox.globalCompositeOperation = 'destination-out'; ox.imageSmoothingEnabled = false;
-      ox.drawImage(mcv, 0, 0, cols * cw * dpr, rows * ch * dpr); ox.globalCompositeOperation = 'source-over';
+      if (frameNo % 2 === 0) { const p = lerp(-0.1, 1.25, ease(bt / BURN)), m = maskImg.data;
+        for (let n = 0; n < burnV.length; n++) m[n * 4 + 3] = clamp((0.26 - (burnV[n] - p)) / 0.15) * 255;
+        mx.putImageData(maskImg, 0, 0); }
+      ox.globalCompositeOperation = 'destination-out'; ox.imageSmoothingEnabled = true;
+      ox.drawImage(mcv, rx / cw, ry / ch, rw / cw, rh / ch, dx, dy, dw, dh); ox.globalCompositeOperation = 'source-over';
     }
-    ctx.drawImage(ocv, 0, 0, W, H);
+    ctx.drawImage(ocv, dx, dy, dw, dh, rx, ry, rw, rh);
   }
-  // hearts and petals
-  if (phase !== 'closed') for (const h of hearts) { h.y -= h.vy * dt; if (h.y < -20) { h.y = H + 20; h.x = Math.random() * W; }
-    ctx.globalAlpha = h.a; heart(ctx, h.x + Math.sin(now / 900 + h.ph) * 10, h.y, h.s, '#ff6fa8'); }
-  if (bt > 3.5 && petals.length < 28 && Math.random() < 0.12) petals.push({ x: Math.random() * W, y: -10, vx: (Math.random() - 0.5) * 20, vy: 25 + Math.random() * 30, r: Math.random() * 6, s: 3 + Math.random() * 4 });
+
+  // fire glow + embers (additive)
+  ctx.globalCompositeOperation = 'lighter';
+  if (phase === 'burning') for (let i = 0; i < fireList.length; i += 6) { ctx.globalAlpha = 0.3; ctx.drawImage(GLOW_FIRE, fireList[i] - cw * 4, fireList[i + 1] - cw * 4, cw * 8, cw * 8); }
+  embers = embers.filter(e => (e.life -= dt * 0.55) > 0);
+  for (const e of embers) { e.x += (e.vx + Math.sin(now / 400 + e.ph) * 14) * dt; e.y += e.vy * dt; e.vy -= 6 * dt;
+    const fl = 0.6 + 0.4 * Math.sin(now / 60 + e.ph), sz = (2.5 + 4 * e.k) * (0.4 + 0.6 * e.life); ctx.globalAlpha = clamp(e.life * 1.1) * fl * 0.8; ctx.drawImage(GLOW_FIRE, e.x - sz, e.y - sz, sz * 2, sz * 2);
+    ctx.globalAlpha = clamp(e.life * 1.5); ctx.fillStyle = e.life > 0.5 ? '#ffe3a0' : '#ff8a3d'; ctx.fillRect(e.x - 0.8, e.y - 0.8, 1.6, 1.6); }
+  // sparkles over the bouquet
+  if (phase === 'bouquet' && bt > BURN - 1) { const k = ease((bt - BURN + 1) / 2);
+    for (const q of sparkles) { const tw = Math.sin(now / 1000 * q.sp + q.p), a = Math.max(0, tw) * k; if (a < 0.05) continue;
+      const x = bq.cx + Math.cos(q.a) * q.r * bq.u * 0.42, y = bq.ty - 0.3 * bq.u + Math.sin(q.a) * q.r * bq.u * 0.4, sz = 5 + 6 * a;
+      ctx.globalAlpha = a * 0.8; ctx.drawImage(GLOW_PINK, x - sz * 1.6, y - sz * 1.6, sz * 3.2, sz * 3.2);
+      ctx.globalAlpha = a; ctx.fillStyle = '#fff'; ctx.fillRect(x - sz * 0.6, y - 0.5, sz * 1.2, 1); ctx.fillRect(x - 0.5, y - sz * 0.6, 1, sz * 1.2); } }
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+
+  // floating hearts (letter onwards) and falling petals (always)
+  if (phase !== 'closed' && phase !== 'opening') { const nh = phase === 'bouquet' ? 22 : 12;
+    for (let i = 0; i < nh; i++) { const h = hearts[i]; h.y -= h.vy * dt; if (h.y < -20) { h.y = H + 20; h.x = rnd() * W; }
+      ctx.globalAlpha = h.a * (phase === 'bouquet' ? 1.3 : 1); heart(ctx, h.x + Math.sin(now / 900 + h.ph) * 10, h.y, h.s, '#ff6fa8'); } }
+  const maxP = calm ? 8 : phase === 'bouquet' ? 34 : phase === 'burning' ? 20 : 14;
+  if (petals.length < maxP && rnd() < (phase === 'bouquet' ? 0.1 : 0.05)) petals.push(newPetal(-12));
   petals = petals.filter(q => q.y < H + 20);
-  for (const q of petals) { q.x += q.vx * dt + Math.sin(now / 700 + q.r) * 0.4; q.y += q.vy * dt; q.r += dt * 2; ctx.globalAlpha = 0.75; ctx.fillStyle = '#ff9ec4'; ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.r); ctx.beginPath(); ctx.ellipse(0, 0, q.s, q.s * 0.55, 0, 0, 7); ctx.fill(); ctx.restore(); }
-  ctx.globalAlpha = 1; lastCol = '';
-  // embers
-  embers = embers.filter(e => (e.life -= dt * 0.7) > 0);
-  for (const e of embers) { e.x += e.vx * dt; e.y += e.vy * dt; put(Math.floor(e.x / cw), Math.floor(e.y / ch), e.life > 0.5 ? '*' : '.', e.life > 0.6 ? '#ffb300' : '#ff5722'); }
+  for (const q of petals) { q.x += (q.vx + Math.sin(now / 900 + q.r) * 12) * dt; q.y += q.vy * dt; q.r += dt * 1.2; q.f += dt * q.fs;
+    ctx.globalAlpha = 0.35 + 0.45 * q.d; ctx.fillStyle = q.c; ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.r);
+    ctx.beginPath(); ctx.ellipse(0, 0, q.s * (0.35 + 0.65 * Math.abs(Math.cos(q.f))), q.s * 0.62, 0, 0, 7); ctx.fill(); ctx.restore(); }
+  ctx.globalAlpha = 1;
   requestAnimationFrame(frame);
 }
 resize(); requestAnimationFrame(frame);
