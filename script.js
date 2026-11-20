@@ -161,7 +161,7 @@ addEventListener('pointerdown', () => {
   else if (phase === 'letter') { go('burning'); burnStart = t0; hint.style.opacity = 0; }
   else if (phase === 'bouquet' && (performance.now() - burnStart) / 1000 > 7) { go('closed'); title.style.opacity = 0; hint.textContent = 'tap to open'; hint.style.opacity = ''; forEl.style.opacity = ''; embers = []; }
 });
-title.innerHTML = 'Happy Birthday<small>' + (MESSAGE.to ? MESSAGE.to + ', ' : '') + 'I love you</small>';
+title.textContent = 'Happy Birthday';
 addEventListener('resize', resize);
 
 function frame(now) {
