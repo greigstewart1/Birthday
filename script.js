@@ -1,6 +1,6 @@
 (() => {
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
-const forEl = document.getElementById('for'), hint = document.getElementById('hint'), title = document.getElementById('title');
+const forEl = { style: {} }, hint = document.getElementById('hint'), title = document.getElementById('title');
 const mk = () => { const c = document.createElement('canvas'); return [c, c.getContext('2d', { willReadFrequently: true })]; };
 const [cB, xB] = mk(), [cA, xA] = mk();
 const S = 3, RAMP = " .'`:;-~=+*xoO#%@", PI = Math.PI;
