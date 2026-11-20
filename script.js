@@ -10,7 +10,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 
 /* ---- edit the message here ---- */
 const MESSAGE = {
-  to: '',   // her name, e.g. 'Holly' (leave '' for "my love")
+  to: 'Holly',
   body: "You make every day brighter just by being in it. I'm so lucky to have you, and I love you more than words can say. I hope today is as beautiful as you are.",
   sign: 'Love Greig'
 };
