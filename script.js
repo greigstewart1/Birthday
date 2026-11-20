@@ -1,12 +1,20 @@
 (() => {
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
-const hint = document.getElementById('hint'), title = document.getElementById('title');
+const forEl = document.getElementById('for'), hint = document.getElementById('hint'), title = document.getElementById('title');
 const mk = () => { const c = document.createElement('canvas'); return [c, c.getContext('2d', { willReadFrequently: true })]; };
 const [cB, xB] = mk(), [cA, xA] = mk();
 const S = 3, RAMP = " .'`:;-~=+*xoO#%@", PI = Math.PI;
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const ease = t => { t = clamp(t); return t * t * (3 - 2 * t); };
 const lerp = (a, b, t) => a + (b - a) * t;
+
+/* ---- edit the message here ---- */
+const MESSAGE = {
+  to: '',   // her name, e.g. 'Holly' (leave '' for "my love")
+  body: "You make every day brighter just by being in it. I'm so lucky to have you, and I love you more than words can say. I hope today is as beautiful as you are.",
+  sign: 'All my love'
+};
+const HEADING = 'Happy Birthday, ' + (MESSAGE.to || 'my love');
 
 let W, H, dpr, cw, ch, cols, rows, stars, burnV, bufB, bufA, env, big;
 
@@ -34,6 +42,7 @@ function resize() {
     const nz = 0.6 * vnoise(c * 0.12, r * 0.12) + 0.3 * vnoise(c * 0.4, r * 0.4) + 0.1 * hash(c, r);
     burnV[r * cols + c] = 0.6 * Math.min(d, 1) + 0.4 * nz;
   }
+  mcv.width = cols; mcv.height = rows; maskImg = mx.createImageData(cols, rows); textReady = false; initFloaters();
   stars = Array.from({ length: Math.round(n / 45) }, () => ({ c: Math.floor(Math.random() * cols), r: Math.floor(Math.random() * rows), p: Math.random() * 6, s: Math.random() }));
 }
 
@@ -44,17 +53,12 @@ function heart(x, px, py, s, col) { x.fillStyle = col; x.beginPath(); x.moveTo(p
   x.bezierCurveTo(px + s * 0.5, py - s * 0.9, px + s, py - s * 0.2, px, py + s * 0.35); x.fill(); }
 function rrect(x, a, b, w, h, r) { x.beginPath(); x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r); x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath(); }
 
-function paper(x, R, textA) {
-  x.fillStyle = '#3d2a1c'; rrect(x, R.cx - R.w / 2, R.cy - R.h / 2, R.w, R.h, 6); x.fill();
+function paper(x, R) {
+  x.fillStyle = '#3a281b'; rrect(x, R.cx - R.w / 2, R.cy - R.h / 2, R.w, R.h, 6); x.fill();
   x.strokeStyle = '#e0b98a'; x.lineWidth = Math.max(3, R.w * 0.015); x.stroke();
-  if (textA <= 0) return;
-  x.save(); x.globalAlpha *= textA; x.fillStyle = x.strokeStyle = '#fffaf0'; x.textAlign = 'center'; x.textBaseline = 'middle';
-  let fs = R.w * 0.3; const f = s => `bold ${s}px Impact, 'Arial Black', Arial, sans-serif`;
-  x.font = f(fs); const mw = x.measureText('Birthday').width; fs *= R.w * 0.8 / mw; x.font = f(fs);
-  x.lineWidth = fs * 0.17; x.lineJoin = 'round'; x.fillText('Happy', R.cx, R.cy - R.h * 0.24); x.strokeText('Happy', R.cx, R.cy - R.h * 0.24);
-  x.fillText('Birthday', R.cx, R.cy - R.h * 0.24 + fs * 1.0); x.strokeText('Birthday', R.cx, R.cy - R.h * 0.24 + fs * 1.0);
-  x.font = f(fs * 0.9); x.fillText('love u', R.cx, R.cy + R.h * 0.2 + fs * 0.3);
-  heart(x, R.cx, R.cy + R.h * 0.38, fs * 0.4, '#d81b60'); x.restore();
+  x.strokeStyle = '#6a4a33'; x.lineWidth = Math.max(1.5, R.h * 0.004);
+  for (let y = R.cy - R.h * 0.2; y < R.cy + R.h * 0.38; y += R.h * 0.075) { x.beginPath(); x.moveTo(R.cx - R.w * 0.42, y); x.lineTo(R.cx + R.w * 0.42, y); x.stroke(); }
+  heart(x, R.cx, R.cy - R.h * 0.4, R.w * 0.035, '#ff7fb0');
 }
 
 function envelope(x, E, flap, L, textA, alpha, dy) {
@@ -118,15 +122,46 @@ function sample(c, x, buf) {
   }
 }
 
+
+/* ---------- crisp handwritten message layer ---------- */
+const tcv = document.createElement('canvas'), tx = tcv.getContext('2d');
+const ocv = document.createElement('canvas'), ox = ocv.getContext('2d');
+const mcv = document.createElement('canvas'), mx = mcv.getContext('2d');
+let textReady = false, maskImg;
+const SCRIPT = '"Great Vibes", "Apple Chancery", "Snell Roundhand", cursive', BODY = '"Dancing Script", "Apple Chancery", "Snell Roundhand", cursive';
+function wrap(c, text, maxW) { const out = []; let line = ''; for (const w of text.split(' ')) { const t = line ? line + ' ' + w : w; if (c.measureText(t).width > maxW && line) { out.push(line); line = w; } else line = t; } out.push(line); return out; }
+function buildText() {
+  tcv.width = ocv.width = Math.round(W * dpr); tcv.height = ocv.height = Math.round(H * dpr);
+  tx.setTransform(dpr, 0, 0, dpr, 0, 0); tx.clearRect(0, 0, W, H); tx.textAlign = 'center'; tx.textBaseline = 'middle';
+  const R = big, mw = R.w * 0.82;
+  let hf = R.w * 0.2; tx.font = `${hf}px ${SCRIPT}`; while (tx.measureText(HEADING).width > mw && hf > 14) { hf -= 1; tx.font = `${hf}px ${SCRIPT}`; }
+  tx.shadowColor = '#ff4f93'; tx.shadowBlur = 14; tx.fillStyle = '#ffb8d4'; tx.fillText(HEADING, R.cx, R.cy - R.h * 0.36);
+  tx.shadowBlur = 0;
+  let bf = R.w * 0.075, lines; const room = R.h * 0.44;
+  for (; bf > 12; bf -= 1) { tx.font = `600 ${bf}px ${BODY}`; lines = wrap(tx, MESSAGE.body, mw); if (lines.length * bf * 1.4 <= room) break; }
+  tx.fillStyle = '#fff3e2'; const y0 = R.cy - R.h * 0.22 + bf * 0.7;
+  lines.forEach((l, i) => tx.fillText(l, R.cx, y0 + i * bf * 1.4));
+  const sf = R.w * 0.09; tx.font = `${sf}px ${SCRIPT}`; tx.fillStyle = '#ffb8d4'; tx.shadowColor = '#ff4f93'; tx.shadowBlur = 10;
+  tx.fillText(MESSAGE.sign, R.cx - sf * 0.4, R.cy + R.h * 0.4); tx.shadowBlur = 0;
+  heart(tx, R.cx + tx.measureText(MESSAGE.sign).width / 2 + sf * 0.3, R.cy + R.h * 0.4 + 2, sf * 0.28, '#ff5c9e');
+  textReady = true;
+}
+if (document.fonts && document.fonts.load) Promise.all([document.fonts.load('40px "Great Vibes"'), document.fonts.load('600 24px "Dancing Script"')]).then(() => { textReady = false; }).catch(() => {});
+
+/* ---------- floating hearts and petals ---------- */
+let hearts = [], petals = [];
+const initFloaters = () => { hearts = Array.from({ length: 16 }, () => ({ x: Math.random() * W, y: Math.random() * H, s: 5 + Math.random() * 9, vy: 12 + Math.random() * 22, ph: Math.random() * 6, a: 0.15 + Math.random() * 0.3 })); petals = []; };
+
 /* ---------- state ---------- */
 let phase = 'closed', t0 = 0, burnStart = 0, embers = [], last = performance.now();
 const OPEN = 3.2, BURN = 4.4, FIRE = ['#ff3d00', '#ff8a00', '#ffc400', '#fff176'], FCH = '^*#%&@+';
 function go(p) { phase = p; t0 = performance.now(); }
 addEventListener('pointerdown', () => {
-  if (phase === 'closed') { go('opening'); hint.style.opacity = 0; }
+  if (phase === 'closed') { go('opening'); hint.style.opacity = 0; forEl.style.opacity = 0; }
   else if (phase === 'letter') { go('burning'); burnStart = t0; hint.style.opacity = 0; }
-  else if (phase === 'bouquet' && (performance.now() - burnStart) / 1000 > 7) { go('closed'); title.style.opacity = 0; hint.textContent = 'tap to open'; hint.style.opacity = ''; embers = []; }
+  else if (phase === 'bouquet' && (performance.now() - burnStart) / 1000 > 7) { go('closed'); title.style.opacity = 0; hint.textContent = 'tap to open'; hint.style.opacity = ''; forEl.style.opacity = ''; embers = []; }
 });
+title.innerHTML = 'Happy Birthday<small>' + (MESSAGE.to ? MESSAGE.to + ', ' : '') + 'I love you</small>';
 addEventListener('resize', resize);
 
 function frame(now) {
@@ -181,6 +216,25 @@ function frame(now) {
   // stars
   for (const s of stars) { const n = s.r * cols + s.c; if (occupied[n]) continue; const tw = 0.5 + 0.5 * Math.sin(now / 600 + s.p), a = 0.15 + 0.5 * tw * (0.4 + s.s);
     put(s.c, s.r, s.s > 0.8 ? '+' : s.s > 0.4 ? '.' : "'", `rgba(190,205,255,${a.toFixed(2)})`); }
+  // crisp message
+  const tA = phase === 'letter' ? ease(el / 0.9) : phase === 'burning' && bt < BURN ? 1 : 0;
+  if (tA > 0) {
+    if (!textReady) buildText();
+    ox.globalCompositeOperation = 'source-over'; ox.globalAlpha = 1; ox.clearRect(0, 0, ocv.width, ocv.height); ox.globalAlpha = tA; ox.drawImage(tcv, 0, 0); ox.globalAlpha = 1;
+    if (phase === 'burning') {
+      const m = maskImg.data; for (let n = 0; n < burnV.length; n++) m[n * 4 + 3] = burnV[n] - p <= 0.14 ? 255 : 0;
+      mx.putImageData(maskImg, 0, 0); ox.globalCompositeOperation = 'destination-out'; ox.imageSmoothingEnabled = false;
+      ox.drawImage(mcv, 0, 0, cols * cw * dpr, rows * ch * dpr); ox.globalCompositeOperation = 'source-over';
+    }
+    ctx.drawImage(ocv, 0, 0, W, H);
+  }
+  // hearts and petals
+  if (phase !== 'closed') for (const h of hearts) { h.y -= h.vy * dt; if (h.y < -20) { h.y = H + 20; h.x = Math.random() * W; }
+    ctx.globalAlpha = h.a; heart(ctx, h.x + Math.sin(now / 900 + h.ph) * 10, h.y, h.s, '#ff6fa8'); }
+  if (bt > 3.5 && petals.length < 28 && Math.random() < 0.12) petals.push({ x: Math.random() * W, y: -10, vx: (Math.random() - 0.5) * 20, vy: 25 + Math.random() * 30, r: Math.random() * 6, s: 3 + Math.random() * 4 });
+  petals = petals.filter(q => q.y < H + 20);
+  for (const q of petals) { q.x += q.vx * dt + Math.sin(now / 700 + q.r) * 0.4; q.y += q.vy * dt; q.r += dt * 2; ctx.globalAlpha = 0.75; ctx.fillStyle = '#ff9ec4'; ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.r); ctx.beginPath(); ctx.ellipse(0, 0, q.s, q.s * 0.55, 0, 0, 7); ctx.fill(); ctx.restore(); }
+  ctx.globalAlpha = 1; lastCol = '';
   // embers
   embers = embers.filter(e => (e.life -= dt * 0.7) > 0);
   for (const e of embers) { e.x += e.vx * dt; e.y += e.vy * dt; put(Math.floor(e.x / cw), Math.floor(e.y / ch), e.life > 0.5 ? '*' : '.', e.life > 0.6 ? '#ffb300' : '#ff5722'); }
